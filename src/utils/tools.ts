@@ -2,7 +2,9 @@ import React from 'react';
 
 export interface Todo {
   id: number;
-  text: string;
+  title: string;
+  description: string;
+  status: 'pending' | 'done';
 }
 
 export const createTodoTool = {
@@ -13,18 +15,22 @@ export const createTodoTool = {
     parameters: {
       type: 'object',
       properties: {
-        text: {
+        title: {
           type: 'string',
-          description: 'The text of the todo item to add',
+          description: 'The title of the todo item',
+        },
+        description: {
+          type: 'string',
+          description: 'The description of the todo item',
         },
       },
-      required: ['text'],
+      required: ['title', 'description'],
     },
   },
 
   handler: (setTodoList: React.Dispatch<React.SetStateAction<Todo[]>>) => {
-    return async ({ text }: { text: string }) => {
-      const newTodo: Todo = { id: Date.now(), text };
+    return async ({ title, description }: { title: string; description: string }) => {
+      const newTodo: Todo = { id: Date.now(), title, description, status: 'pending' };
       setTodoList((prevTodos) => {
         const newTodos = [...prevTodos, newTodo];
         localStorage.setItem('todo_list', JSON.stringify(newTodos));
@@ -60,7 +66,7 @@ export const updateTodoTool = {
   definition: {
     name: 'update_todo',
     description:
-      'Updates the text of an existing todo item and saves it to localStorage.',
+      'Updates an existing todo item and saves it to localStorage.',
     parameters: {
       type: 'object',
       properties: {
@@ -68,20 +74,29 @@ export const updateTodoTool = {
           type: 'number',
           description: 'The id of the todo item to update',
         },
-        text: {
+        title: {
           type: 'string',
-          description: 'The new text for the todo item',
+          description: 'The new title for the todo item',
+        },
+        description: {
+          type: 'string',
+          description: 'The new description for the todo item',
+        },
+        status: {
+          type: 'string',
+          enum: ['pending', 'done'],
+          description: 'The new status for the todo item',
         },
       },
-      required: ['id', 'text'],
+      required: ['id'],
     },
   },
 
   handler: (setTodoList: React.Dispatch<React.SetStateAction<Todo[]>>) => {
-    return async ({ id, text }: { id: number; text: string }) => {
+    return async ({ id, title, description, status }: { id: number; title?: string; description?: string; status?: 'pending' | 'done' }) => {
       setTodoList((prevTodos) => {
         const newTodos = prevTodos.map((todo) =>
-          todo.id === id ? { ...todo, text } : todo
+          todo.id === id ? { ...todo, title: title || todo.title, description: description || todo.description, status: status || todo.status } : todo
         );
         localStorage.setItem('todo_list', JSON.stringify(newTodos));
         return newTodos;

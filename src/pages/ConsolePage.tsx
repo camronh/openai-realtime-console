@@ -33,6 +33,7 @@ import {
   deleteTodoTool,
   Todo,
 } from '../utils/tools';
+import { Checkbox } from '../components/checkbox/Checkbox'; // You might need to create this component
 
 /**
  * Type for result from get_weather() function call
@@ -488,6 +489,16 @@ Current TODO list:
     localStorage.setItem('todo_list', JSON.stringify([]));
   }, []);
 
+  const toggleTodoStatus = useCallback((id: number) => {
+    setTodoList((prevTodos: Todo[]) => {
+      const newTodos = prevTodos.map((todo) =>
+        todo.id === id ? { ...todo, status: todo.status === 'done' ? 'pending' : 'done' } : todo
+      );
+      localStorage.setItem('todo_list', JSON.stringify(newTodos));
+      return newTodos as Todo[];
+    });
+  }, []);
+
   /**
    * Render the application
    */
@@ -519,9 +530,18 @@ Current TODO list:
                 <p>No todos yet. Start a conversation to add some!</p>
               ) : (
                 <>
-                  <ul>
+                  <ul className="todo-list">
                     {todoList.map((todo) => (
-                      <li key={todo.id}>{todo.text}</li>
+                      <li key={todo.id} className={`todo-item ${todo.status}`}>
+                        <Checkbox
+                          checked={todo.status === 'done'}
+                          onChange={() => toggleTodoStatus(todo.id)}
+                        />
+                        <div className="todo-content">
+                          <h3>{todo.title}</h3>
+                          <p>{todo.description}</p>
+                        </div>
+                      </li>
                     ))}
                   </ul>
                   <Button

@@ -277,4 +277,41 @@
       }
     }
   }
+
+  .todo-list {
+    list-style-type: none;
+    padding: 0;
+
+    .todo-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+
+      &.done {
+        opacity: 0.6;
+        text-decoration: line-through;
+      }
+
+      .todo-content {
+        margin-left: 10px;
+
+        h3 {
+          margin: 0 0 5px 0;
+        }
+
+        p {
+          margin: 0;
+          font-size: 0.9em;
+          color: #666;
+        }
+      }
+    }
+  }
+
+  .clear-list-button {
+    margin-top: 10px;
+  }
 }
