@@ -16,16 +16,23 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { RealtimeClient } from '@openai/realtime-api-beta';
 import { ItemType } from '@openai/realtime-api-beta/dist/lib/client.js';
 import { WavRecorder, WavStreamPlayer } from '../lib/wavtools/index.js';
-import { instructions } from '../utils/conversation_config.js';
+import { baseInstructions, voiceId } from '../utils/conversation_config.js';
 import { WavRenderer } from '../utils/wav_renderer';
 
-import { X, Edit, Zap, ArrowUp, ArrowDown } from 'react-feather';
+import { X, Edit, Zap, ArrowUp, ArrowDown, Trash2 } from 'react-feather';
 import { Button } from '../components/button/Button';
 import { Toggle } from '../components/toggle/Toggle';
 import { Map } from '../components/Map';
 
 import './ConsolePage.scss';
 import { isJsxOpeningLikeElement } from 'typescript';
+import {
+  createTodoTool,
+  readTodoListTool,
+  updateTodoTool,
+  deleteTodoTool,
+  Todo,
+} from '../utils/tools';
 
 /**
  * Type for result from get_weather() function call
@@ -124,6 +131,8 @@ export function ConsolePage() {
     lng: -122.418137,
   });
   const [marker, setMarker] = useState<Coordinates | null>(null);
+  const [todoList, setTodoList] = useState<Todo[]>([]);
+  const instructionsRef = useRef(baseInstructions);
 
   /**
    * Utility for formatting the timing of logs
@@ -228,9 +237,15 @@ export function ConsolePage() {
    * .appendInputAudio() for each sample
    */
   const startRecording = async () => {
+    const wavRecorder = wavRecorderRef.current;
+    
+    // Check if already recording, if so, pause first
+    if (wavRecorder.getStatus() === 'recording') {
+      await wavRecorder.pause();
+    }
+
     setIsRecording(true);
     const client = clientRef.current;
-    const wavRecorder = wavRecorderRef.current;
     const wavStreamPlayer = wavStreamPlayerRef.current;
     const trackSampleOffset = await wavStreamPlayer.interrupt();
     if (trackSampleOffset?.trackId) {
@@ -247,7 +262,12 @@ export function ConsolePage() {
     setIsRecording(false);
     const client = clientRef.current;
     const wavRecorder = wavRecorderRef.current;
-    await wavRecorder.pause();
+    
+    // Only pause if currently recording
+    if (wavRecorder.getStatus() === 'recording') {
+      await wavRecorder.pause();
+    }
+    
     client.createResponse();
   };
 
@@ -376,83 +396,25 @@ export function ConsolePage() {
     const wavStreamPlayer = wavStreamPlayerRef.current;
     const client = clientRef.current;
 
-    // Set instructions
-    client.updateSession({ instructions: instructions });
+    // Update session with current instructions
+    client.updateSession({ instructions: instructionsRef.current });
+    client.updateSession({ voice: voiceId });
+
     // Set transcription, otherwise we don't get user transcriptions back
     client.updateSession({ input_audio_transcription: { model: 'whisper-1' } });
 
     // Add tools
     client.addTool(
-      {
-        name: 'set_memory',
-        description: 'Saves important data about the user into memory.',
-        parameters: {
-          type: 'object',
-          properties: {
-            key: {
-              type: 'string',
-              description:
-                'The key of the memory value. Always use lowercase and underscores, no other characters.',
-            },
-            value: {
-              type: 'string',
-              description: 'Value can be anything represented as a string',
-            },
-          },
-          required: ['key', 'value'],
-        },
-      },
-      async ({ key, value }: { [key: string]: any }) => {
-        setMemoryKv((memoryKv) => {
-          const newKv = { ...memoryKv };
-          newKv[key] = value;
-          return newKv;
-        });
-        return { ok: true };
-      }
+      createTodoTool.definition,
+      createTodoTool.handler(setTodoList)
     );
     client.addTool(
-      {
-        name: 'get_weather',
-        description:
-          'Retrieves the weather for a given lat, lng coordinate pair. Specify a label for the location.',
-        parameters: {
-          type: 'object',
-          properties: {
-            lat: {
-              type: 'number',
-              description: 'Latitude',
-            },
-            lng: {
-              type: 'number',
-              description: 'Longitude',
-            },
-            location: {
-              type: 'string',
-              description: 'Name of the location',
-            },
-          },
-          required: ['lat', 'lng', 'location'],
-        },
-      },
-      async ({ lat, lng, location }: { [key: string]: any }) => {
-        setMarker({ lat, lng, location });
-        setCoords({ lat, lng, location });
-        const result = await fetch(
-          `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,wind_speed_10m`
-        );
-        const json = await result.json();
-        const temperature = {
-          value: json.current.temperature_2m as number,
-          units: json.current_units.temperature_2m as string,
-        };
-        const wind_speed = {
-          value: json.current.wind_speed_10m as number,
-          units: json.current_units.wind_speed_10m as string,
-        };
-        setMarker({ lat, lng, location, temperature, wind_speed });
-        return json;
-      }
+      updateTodoTool.definition,
+      updateTodoTool.handler(setTodoList)
+    );
+    client.addTool(
+      deleteTodoTool.definition,
+      deleteTodoTool.handler(setTodoList)
     );
 
     // handle realtime events from client + server for event logging
@@ -494,10 +456,36 @@ export function ConsolePage() {
 
     setItems(client.conversation.getItems());
 
+    // Load initial todo list from localStorage
+    const savedTodoList = localStorage.getItem('todo_list');
+    if (savedTodoList) {
+      setTodoList(JSON.parse(savedTodoList));
+    }
+
     return () => {
       // cleanup; resets to defaults
       client.reset();
     };
+  }, []); // Remove the dependency on instructions
+
+  /**
+   * Replace the useEffect that updates instructions
+   */
+  useEffect(() => {
+    const todoListJson = JSON.stringify(todoList);
+    instructionsRef.current = `${baseInstructions}
+
+Current TODO list:
+<TODO>${todoListJson}</TODO>`;
+
+    // Update the client's instructions without triggering a re-render
+    clientRef.current.updateSession({ instructions: instructionsRef.current });
+  }, [todoList]);
+
+  // Add this new function to clear the todo list
+  const clearTodoList = useCallback(() => {
+    setTodoList([]);
+    localStorage.setItem('todo_list', JSON.stringify([]));
   }, []);
 
   /**
@@ -524,78 +512,28 @@ export function ConsolePage() {
       </div>
       <div className="content-main">
         <div className="content-logs">
-          <div className="content-block events">
-            <div className="visualization">
-              <div className="visualization-entry client">
-                <canvas ref={clientCanvasRef} />
-              </div>
-              <div className="visualization-entry server">
-                <canvas ref={serverCanvasRef} />
-              </div>
-            </div>
-            <div className="content-block-title">events</div>
-            <div className="content-block-body" ref={eventsScrollRef}>
-              {!realtimeEvents.length && `awaiting connection...`}
-              {realtimeEvents.map((realtimeEvent, i) => {
-                const count = realtimeEvent.count;
-                const event = { ...realtimeEvent.event };
-                if (event.type === 'input_audio_buffer.append') {
-                  event.audio = `[trimmed: ${event.audio.length} bytes]`;
-                } else if (event.type === 'response.audio.delta') {
-                  event.delta = `[trimmed: ${event.delta.length} bytes]`;
-                }
-                return (
-                  <div className="event" key={event.event_id}>
-                    <div className="event-timestamp">
-                      {formatTime(realtimeEvent.time)}
-                    </div>
-                    <div className="event-details">
-                      <div
-                        className="event-summary"
-                        onClick={() => {
-                          // toggle event details
-                          const id = event.event_id;
-                          const expanded = { ...expandedEvents };
-                          if (expanded[id]) {
-                            delete expanded[id];
-                          } else {
-                            expanded[id] = true;
-                          }
-                          setExpandedEvents(expanded);
-                        }}
-                      >
-                        <div
-                          className={`event-source ${
-                            event.type === 'error'
-                              ? 'error'
-                              : realtimeEvent.source
-                          }`}
-                        >
-                          {realtimeEvent.source === 'client' ? (
-                            <ArrowUp />
-                          ) : (
-                            <ArrowDown />
-                          )}
-                          <span>
-                            {event.type === 'error'
-                              ? 'error!'
-                              : realtimeEvent.source}
-                          </span>
-                        </div>
-                        <div className="event-type">
-                          {event.type}
-                          {count && ` (${count})`}
-                        </div>
-                      </div>
-                      {!!expandedEvents[event.event_id] && (
-                        <div className="event-payload">
-                          {JSON.stringify(event, null, 2)}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+          <div className="content-block update-todo-list">
+            <div className="content-block-title">Todo List</div>
+            <div className="content-block-body">
+              {todoList.length === 0 ? (
+                <p>No todos yet. Start a conversation to add some!</p>
+              ) : (
+                <>
+                  <ul>
+                    {todoList.map((todo) => (
+                      <li key={todo.id}>{todo.text}</li>
+                    ))}
+                  </ul>
+                  <Button
+                    className="clear-list-button"
+                    icon={Trash2}
+                    iconPosition="start"
+                    buttonStyle="regular"
+                    label="Clear List"
+                    onClick={clearTodoList}
+                  />
+                </>
+              )}
             </div>
           </div>
           <div className="content-block conversation">
@@ -692,36 +630,10 @@ export function ConsolePage() {
           </div>
         </div>
         <div className="content-right">
-          <div className="content-block map">
-            <div className="content-block-title">get_weather()</div>
-            <div className="content-block-title bottom">
-              {marker?.location || 'not yet retrieved'}
-              {!!marker?.temperature && (
-                <>
-                  <br />
-                  🌡️ {marker.temperature.value} {marker.temperature.units}
-                </>
-              )}
-              {!!marker?.wind_speed && (
-                <>
-                  {' '}
-                  🍃 {marker.wind_speed.value} {marker.wind_speed.units}
-                </>
-              )}
-            </div>
-            <div className="content-block-body full">
-              {coords && (
-                <Map
-                  center={[coords.lat, coords.lng]}
-                  location={coords.location}
-                />
-              )}
-            </div>
-          </div>
-          <div className="content-block kv">
-            <div className="content-block-title">set_memory()</div>
-            <div className="content-block-body content-kv">
-              {JSON.stringify(memoryKv, null, 2)}
+          <div className="content-block placeholder">
+            <div className="content-block-title">Placeholder</div>
+            <div className="content-block-body">
+              <p>This is a placeholder for future content or features.</p>
             </div>
           </div>
         </div>
