@@ -27,13 +27,12 @@ import { Map } from '../components/Map';
 import './ConsolePage.scss';
 import { isJsxOpeningLikeElement } from 'typescript';
 import {
-  createTodoTool,
-  readTodoListTool,
-  updateTodoTool,
-  deleteTodoTool,
-  Todo,
+  Itinerary,
+  ItineraryPreview,
+  suggestItineraryTool,
 } from '../utils/tools';
 import { Checkbox } from '../components/checkbox/Checkbox'; // You might need to create this component
+import { itineraries as mockItineraries } from '../utils/mock_itins';
 
 /**
  * Type for result from get_weather() function call
@@ -132,7 +131,10 @@ export function ConsolePage() {
     lng: -122.418137,
   });
   const [marker, setMarker] = useState<Coordinates | null>(null);
-  const [todoList, setTodoList] = useState<Todo[]>([]);
+  const [itineraries, setItineraries] = useState<ItineraryPreview[]>([]);
+  const [selectedItinerary, setSelectedItinerary] = useState<Itinerary | null>(
+    null
+  );
   const instructionsRef = useRef(baseInstructions);
 
   /**
@@ -239,7 +241,7 @@ export function ConsolePage() {
    */
   const startRecording = async () => {
     const wavRecorder = wavRecorderRef.current;
-    
+
     // Check if already recording, if so, pause first
     if (wavRecorder.getStatus() === 'recording') {
       await wavRecorder.pause();
@@ -263,12 +265,12 @@ export function ConsolePage() {
     setIsRecording(false);
     const client = clientRef.current;
     const wavRecorder = wavRecorderRef.current;
-    
+
     // Only pause if currently recording
     if (wavRecorder.getStatus() === 'recording') {
       await wavRecorder.pause();
     }
-    
+
     client.createResponse();
   };
 
@@ -406,16 +408,8 @@ export function ConsolePage() {
 
     // Add tools
     client.addTool(
-      createTodoTool.definition,
-      createTodoTool.handler(setTodoList)
-    );
-    client.addTool(
-      updateTodoTool.definition,
-      updateTodoTool.handler(setTodoList)
-    );
-    client.addTool(
-      deleteTodoTool.definition,
-      deleteTodoTool.handler(setTodoList)
+      suggestItineraryTool.definition,
+      suggestItineraryTool.handler(setSelectedItinerary)
     );
 
     // handle realtime events from client + server for event logging
@@ -457,11 +451,8 @@ export function ConsolePage() {
 
     setItems(client.conversation.getItems());
 
-    // Load initial todo list from localStorage
-    const savedTodoList = localStorage.getItem('todo_list');
-    if (savedTodoList) {
-      setTodoList(JSON.parse(savedTodoList));
-    }
+    // Load initial itineraries (you'll need to implement this)
+    loadInitialItineraries();
 
     return () => {
       // cleanup; resets to defaults
@@ -473,31 +464,49 @@ export function ConsolePage() {
    * Replace the useEffect that updates instructions
    */
   useEffect(() => {
-    const todoListJson = JSON.stringify(todoList);
+    const itinerariesJson = JSON.stringify(itineraries);
+    const selectedItineraryJson = selectedItinerary
+      ? JSON.stringify(selectedItinerary)
+      : 'null';
     instructionsRef.current = `${baseInstructions}
 
-Current TODO list:
-<TODO>${todoListJson}</TODO>`;
+Current Itineraries:
+<ITINERARIES>${itinerariesJson}</ITINERARIES>
+
+${
+  selectedItineraryJson
+    ? `Highlighted Itinerary:
+<SELECTED_ITINERARY>${selectedItineraryJson}</SELECTED_ITINERARY>`
+    : ''
+}
+
+You can suggest itineraries based on user preferences using the suggest_itinerary tool.
+`;
 
     // Update the client's instructions without triggering a re-render
     clientRef.current.updateSession({ instructions: instructionsRef.current });
-  }, [todoList]);
+  }, [itineraries, selectedItinerary]);
 
-  // Add this new function to clear the todo list
-  const clearTodoList = useCallback(() => {
-    setTodoList([]);
-    localStorage.setItem('todo_list', JSON.stringify([]));
-  }, []);
+  // Add this function to load initial itineraries
+  const loadInitialItineraries = () => {
+    setItineraries(
+      mockItineraries.map((itinerary) => ({
+        id: itinerary.id,
+        title: itinerary.title,
+        price: itinerary.price,
+        duration: itinerary.duration,
+        imageUrl: itinerary.imageUrl,
+      }))
+    );
+  };
 
-  const toggleTodoStatus = useCallback((id: number) => {
-    setTodoList((prevTodos: Todo[]) => {
-      const newTodos = prevTodos.map((todo) =>
-        todo.id === id ? { ...todo, status: todo.status === 'done' ? 'pending' : 'done' } : todo
-      );
-      localStorage.setItem('todo_list', JSON.stringify(newTodos));
-      return newTodos as Todo[];
-    });
-  }, []);
+  // Add a function to handle itinerary selection
+  const handleItinerarySelect = (id: number) => {
+    const fullItinerary = mockItineraries.find(
+      (itinerary) => itinerary.id === id
+    );
+    setSelectedItinerary(fullItinerary || null);
+  };
 
   /**
    * Render the application
@@ -523,36 +532,33 @@ Current TODO list:
       </div>
       <div className="content-main">
         <div className="content-logs">
-          <div className="content-block update-todo-list">
-            <div className="content-block-title">Todo List</div>
+          <div className="content-block itinerary-list">
+            <div className="content-block-title">Itineraries</div>
             <div className="content-block-body">
-              {todoList.length === 0 ? (
-                <p>No todos yet. Start a conversation to add some!</p>
+              {itineraries.length === 0 ? (
+                <p>
+                  No itineraries available. Start a conversation to get
+                  suggestions!
+                </p>
               ) : (
-                <>
-                  <ul className="todo-list">
-                    {todoList.map((todo) => (
-                      <li key={todo.id} className={`todo-item ${todo.status}`}>
-                        <Checkbox
-                          checked={todo.status === 'done'}
-                          onChange={() => toggleTodoStatus(todo.id)}
-                        />
-                        <div className="todo-content">
-                          <h3>{todo.title}</h3>
-                          <p>{todo.description}</p>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                  <Button
-                    className="clear-list-button"
-                    icon={Trash2}
-                    iconPosition="start"
-                    buttonStyle="regular"
-                    label="Clear List"
-                    onClick={clearTodoList}
-                  />
-                </>
+                <div className="itinerary-preview-grid">
+                  {itineraries.map((itinerary) => (
+                    <div
+                      key={itinerary.id}
+                      className={`itinerary-preview-card ${
+                        selectedItinerary?.id === itinerary.id ? 'selected' : ''
+                      }`}
+                      onClick={() => handleItinerarySelect(itinerary.id)}
+                    >
+                      <img src={itinerary.imageUrl} alt={itinerary.title} />
+                      <div className="itinerary-preview-content">
+                        <h3>{itinerary.title}</h3>
+                        <p>Price: ${itinerary.price}</p>
+                        <p>Duration: {itinerary.duration}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </div>
@@ -650,10 +656,62 @@ Current TODO list:
           </div>
         </div>
         <div className="content-right">
-          <div className="content-block placeholder">
-            <div className="content-block-title">Placeholder</div>
+          <div className="content-block itinerary-details">
+            <div className="content-block-title">Itinerary Details</div>
             <div className="content-block-body">
-              <p>This is a placeholder for future content or features.</p>
+              {selectedItinerary ? (
+                <div className="itinerary-full-details">
+                  <img
+                    src={selectedItinerary.imageUrl}
+                    alt={selectedItinerary.title}
+                  />
+                  <h2>{selectedItinerary.title}</h2>
+                  <p className="description">{selectedItinerary.description}</p>
+                  <div className="detail-row">
+                    <span>Price:</span> ${selectedItinerary.price}
+                  </div>
+                  <div className="detail-row">
+                    <span>Duration:</span> {selectedItinerary.duration}
+                  </div>
+                  <div className="detail-row">
+                    <span>Departure:</span> {selectedItinerary.departureDate}
+                  </div>
+                  <div className="detail-row">
+                    <span>Return:</span> {selectedItinerary.returnDate}
+                  </div>
+                  <div className="detail-row">
+                    <span>Departure Port:</span>{' '}
+                    {selectedItinerary.departurePort}
+                  </div>
+                  <div className="detail-row">
+                    <span>Arrival Port:</span> {selectedItinerary.arrivalPort}
+                  </div>
+                  <div className="detail-row">
+                    <span>Ship:</span> {selectedItinerary.shipName}
+                  </div>
+                  <div className="detail-row">
+                    <span>Ports of Call:</span>
+                    <ul>
+                      {selectedItinerary.portsOfCall.map((port, index) => (
+                        <li key={index}>{port}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="detail-row">
+                    <span>Amenities:</span>
+                    <ul>
+                      {selectedItinerary.amenities.map((amenity, index) => (
+                        <li key={index}>{amenity}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              ) : (
+                <p>
+                  No itinerary selected. Ask me to suggest an itinerary based on
+                  your preferences!
+                </p>
+              )}
             </div>
           </div>
         </div>

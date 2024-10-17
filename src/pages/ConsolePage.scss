@@ -66,7 +66,7 @@
       }
     }
     .content-right {
-      width: 300px;
+      width: 400px;
       flex-shrink: 0;
       display: flex;
       flex-direction: column;
@@ -110,9 +110,58 @@
           margin-top: 56px;
         }
       }
+      .itinerary-details {
+        .content-block-body {
+          padding: 20px;
+          overflow-y: auto;
+        }
+
+        .itinerary-full-details {
+          img {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-bottom: 15px;
+          }
+
+          h2 {
+            font-size: 1.5em;
+            margin-bottom: 10px;
+            color: #333;
+          }
+
+          .description {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 15px;
+          }
+
+          .detail-row {
+            margin-bottom: 10px;
+            font-size: 0.9em;
+
+            span {
+              font-weight: bold;
+              color: #333;
+            }
+
+            ul {
+              margin: 5px 0 0 20px;
+              padding: 0;
+
+              li {
+                margin-bottom: 5px;
+              }
+            }
+          }
+        }
+      }
     }
     .content-logs {
       flex-grow: 1;
+      flex-shrink: 1;
+      min-width: 0;
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -313,5 +362,55 @@
 
   .clear-list-button {
     margin-top: 10px;
+  }
+
+  .itinerary-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 20px;
+    padding: 20px;
+
+    .itinerary-preview-card {
+      display: flex;
+      flex-direction: column;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: all 0.3s ease;
+
+      &:hover {
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      }
+
+      &.selected {
+        border-color: #0099ff;
+        background-color: #f0f8ff;
+      }
+
+      img {
+        width: 100%;
+        height: 150px;
+        object-fit: cover;
+      }
+
+      .itinerary-preview-content {
+        padding: 10px;
+
+        h3 {
+          margin: 0 0 10px 0;
+          font-size: 1em;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        p {
+          margin: 5px 0;
+          font-size: 0.8em;
+          color: #666;
+        }
+      }
+    }
   }
 }

@@ -1,136 +1,69 @@
 import React from 'react';
+import { itineraries as mockItineraries } from './mock_itins';
 
-export interface Todo {
+export interface Itinerary {
   id: number;
   title: string;
   description: string;
-  status: 'pending' | 'done';
+  price: number;
+  duration: string;
+  departureDate: string;
+  returnDate: string;
+  departurePort: string;
+  arrivalPort: string;
+  portsOfCall: string[];
+  imageUrl: string;
+  shipName: string;
+  amenities: string[];
 }
 
-export const createTodoTool = {
+export interface ItineraryPreview {
+  id: number;
+  title: string;
+  price: number;
+  duration: string;
+  imageUrl: string;
+}
+
+// Update the suggestItineraryTool
+export const suggestItineraryTool = {
   definition: {
-    name: 'create_todo',
-    description:
-      'Adds a new todo item to the todo list and saves it to localStorage.',
+    name: 'suggest_itinerary',
+    description: 'Suggests an itinerary based on the given ID.',
     parameters: {
       type: 'object',
       properties: {
-        title: {
-          type: 'string',
-          description: 'The title of the todo item',
-        },
-        description: {
-          type: 'string',
-          description: 'The description of the todo item',
-        },
-      },
-      required: ['title', 'description'],
-    },
-  },
-
-  handler: (setTodoList: React.Dispatch<React.SetStateAction<Todo[]>>) => {
-    return async ({ title, description }: { title: string; description: string }) => {
-      const newTodo: Todo = { id: Date.now(), title, description, status: 'pending' };
-      setTodoList((prevTodos) => {
-        const newTodos = [...prevTodos, newTodo];
-        localStorage.setItem('todo_list', JSON.stringify(newTodos));
-        return newTodos;
-      });
-      return { ok: true, message: 'Todo added successfully', todo: newTodo };
-    };
-  },
-};
-
-export const readTodoListTool = {
-  definition: {
-    name: 'read_todo_list',
-    description: 'Retrieves the current list of todos from localStorage.',
-    parameters: {
-      type: 'object',
-      properties: {},
-      required: [],
-    },
-  },
-
-  handler: () => {
-    return async () => {
-      const todos: Todo[] = JSON.parse(
-        localStorage.getItem('todo_list') || '[]'
-      );
-      return { todos };
-    };
-  },
-};
-
-export const updateTodoTool = {
-  definition: {
-    name: 'update_todo',
-    description:
-      'Updates an existing todo item and saves it to localStorage.',
-    parameters: {
-      type: 'object',
-      properties: {
-        id: {
+        itineraryId: {
           type: 'number',
-          description: 'The id of the todo item to update',
-        },
-        title: {
-          type: 'string',
-          description: 'The new title for the todo item',
-        },
-        description: {
-          type: 'string',
-          description: 'The new description for the todo item',
-        },
-        status: {
-          type: 'string',
-          enum: ['pending', 'done'],
-          description: 'The new status for the todo item',
+          description: 'The ID of the itinerary to suggest',
         },
       },
-      required: ['id'],
+      required: ['itineraryId'],
     },
   },
 
-  handler: (setTodoList: React.Dispatch<React.SetStateAction<Todo[]>>) => {
-    return async ({ id, title, description, status }: { id: number; title?: string; description?: string; status?: 'pending' | 'done' }) => {
-      setTodoList((prevTodos) => {
-        const newTodos = prevTodos.map((todo) =>
-          todo.id === id ? { ...todo, title: title || todo.title, description: description || todo.description, status: status || todo.status } : todo
-        );
-        localStorage.setItem('todo_list', JSON.stringify(newTodos));
-        return newTodos;
-      });
-      return { ok: true, message: 'Todo updated successfully' };
+  handler: (setSelectedItinerary: React.Dispatch<React.SetStateAction<Itinerary | null>>) => {
+    return async ({ itineraryId }: { itineraryId: number }) => {
+      // Find the itinerary with the matching ID
+      const suggestedItinerary = mockItineraries.find(itinerary => itinerary.id === itineraryId);
+
+      if (suggestedItinerary) {
+        // Set the selected itinerary to render it in the utility pane
+        setSelectedItinerary(suggestedItinerary);
+        return { 
+          ok: true, 
+          message: 'Itinerary suggested successfully', 
+          itinerary: suggestedItinerary 
+        };
+      } else {
+        return { 
+          ok: false, 
+          message: 'Itinerary not found', 
+          itinerary: null 
+        };
+      }
     };
   },
 };
 
-export const deleteTodoTool = {
-  definition: {
-    name: 'delete_todo',
-    description:
-      'Deletes a todo item from the todo list and saves it to localStorage.',
-    parameters: {
-      type: 'object',
-      properties: {
-        id: {
-          type: 'number',
-          description: 'The id of the todo item to delete',
-        },
-      },
-      required: ['id'],
-    },
-  },
-
-  handler: (setTodoList: React.Dispatch<React.SetStateAction<Todo[]>>) => {
-    return async ({ id }: { id: number }) => {
-      setTodoList((prevTodos) => {
-        const newTodos = prevTodos.filter((todo) => todo.id !== id);
-        localStorage.setItem('todo_list', JSON.stringify(newTodos));
-        return newTodos;
-      });
-      return { ok: true, message: 'Todo deleted successfully' };
-    };
-  },
-};
+// You may want to add more tools here as needed for the itinerary app
