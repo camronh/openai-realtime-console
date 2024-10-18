@@ -135,6 +135,7 @@ export function ConsolePage() {
   const [selectedItinerary, setSelectedItinerary] = useState<Itinerary | null>(
     null
   );
+  const [selectedItineraries, setSelectedItineraries] = useState<Itinerary[]>([]);
   const instructionsRef = useRef(baseInstructions);
 
   /**
@@ -409,7 +410,7 @@ export function ConsolePage() {
     // Add tools
     client.addTool(
       suggestItineraryTool.definition,
-      suggestItineraryTool.handler(setSelectedItinerary)
+      suggestItineraryTool.handler(setSelectedItineraries)
     );
 
     // handle realtime events from client + server for event logging
@@ -464,28 +465,26 @@ export function ConsolePage() {
    * Replace the useEffect that updates instructions
    */
   useEffect(() => {
-    const itinerariesJson = JSON.stringify(itineraries);
-    const selectedItineraryJson = selectedItinerary
-      ? JSON.stringify(selectedItinerary)
-      : 'null';
+    const fullItinerariesJson = JSON.stringify(mockItineraries);
+    const selectedItinerariesJson = JSON.stringify(selectedItineraries);
     instructionsRef.current = `${baseInstructions}
 
 Current Itineraries:
-<ITINERARIES>${itinerariesJson}</ITINERARIES>
+<ITINERARIES>${fullItinerariesJson}</ITINERARIES>
 
 ${
-  selectedItineraryJson
-    ? `Highlighted Itinerary:
-<SELECTED_ITINERARY>${selectedItineraryJson}</SELECTED_ITINERARY>`
-    : ''
-}
+      selectedItineraries.length > 0
+        ? `Highlighted Itineraries:
+<SELECTED_ITINERARIES>${selectedItinerariesJson}</SELECTED_ITINERARIES>`
+        : ''
+    }
 
-You can suggest itineraries based on user preferences using the suggest_itinerary tool.
+You can suggest up to 2 itineraries based on user preferences using the suggest_itinerary tool.
 `;
 
     // Update the client's instructions without triggering a re-render
     clientRef.current.updateSession({ instructions: instructionsRef.current });
-  }, [itineraries, selectedItinerary]);
+  }, [selectedItineraries]);
 
   // Add this function to load initial itineraries
   const loadInitialItineraries = () => {
@@ -500,12 +499,23 @@ You can suggest itineraries based on user preferences using the suggest_itinerar
     );
   };
 
-  // Add a function to handle itinerary selection
+  // Modify the handleItinerarySelect function
   const handleItinerarySelect = (id: number) => {
-    const fullItinerary = mockItineraries.find(
-      (itinerary) => itinerary.id === id
-    );
-    setSelectedItinerary(fullItinerary || null);
+    setSelectedItineraries((prevSelected) => {
+      const fullItinerary = mockItineraries.find((itinerary) => itinerary.id === id);
+      if (!fullItinerary) return prevSelected;
+
+      if (prevSelected.some((itinerary) => itinerary.id === id)) {
+        // If the itinerary is already selected, remove it
+        return prevSelected.filter((itinerary) => itinerary.id !== id);
+      } else if (prevSelected.length < 2) {
+        // If less than 2 itineraries are selected, add the new one
+        return [...prevSelected, fullItinerary];
+      } else {
+        // If 2 itineraries are already selected, replace the first one
+        return [prevSelected[1], fullItinerary];
+      }
+    });
   };
 
   /**
@@ -546,7 +556,7 @@ You can suggest itineraries based on user preferences using the suggest_itinerar
                     <div
                       key={itinerary.id}
                       className={`itinerary-preview-card ${
-                        selectedItinerary?.id === itinerary.id ? 'selected' : ''
+                        selectedItineraries.some((selected) => selected.id === itinerary.id) ? 'selected' : ''
                       }`}
                       onClick={() => handleItinerarySelect(itinerary.id)}
                     >
@@ -656,64 +666,69 @@ You can suggest itineraries based on user preferences using the suggest_itinerar
           </div>
         </div>
         <div className="content-right">
-          <div className="content-block itinerary-details">
-            <div className="content-block-title">Itinerary Details</div>
-            <div className="content-block-body">
-              {selectedItinerary ? (
-                <div className="itinerary-full-details">
-                  <img
-                    src={selectedItinerary.imageUrl}
-                    alt={selectedItinerary.title}
-                  />
-                  <h2>{selectedItinerary.title}</h2>
-                  <p className="description">{selectedItinerary.description}</p>
-                  <div className="detail-row">
-                    <span>Price:</span> ${selectedItinerary.price}
-                  </div>
-                  <div className="detail-row">
-                    <span>Duration:</span> {selectedItinerary.duration}
-                  </div>
-                  <div className="detail-row">
-                    <span>Departure:</span> {selectedItinerary.departureDate}
-                  </div>
-                  <div className="detail-row">
-                    <span>Return:</span> {selectedItinerary.returnDate}
-                  </div>
-                  <div className="detail-row">
-                    <span>Departure Port:</span>{' '}
-                    {selectedItinerary.departurePort}
-                  </div>
-                  <div className="detail-row">
-                    <span>Arrival Port:</span> {selectedItinerary.arrivalPort}
-                  </div>
-                  <div className="detail-row">
-                    <span>Ship:</span> {selectedItinerary.shipName}
-                  </div>
-                  <div className="detail-row">
-                    <span>Ports of Call:</span>
-                    <ul>
-                      {selectedItinerary.portsOfCall.map((port, index) => (
-                        <li key={index}>{port}</li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div className="detail-row">
-                    <span>Amenities:</span>
-                    <ul>
-                      {selectedItinerary.amenities.map((amenity, index) => (
-                        <li key={index}>{amenity}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              ) : (
+          {selectedItineraries.length === 0 ? (
+            <div className="content-block itinerary-details">
+              <div className="content-block-title">Itinerary Details</div>
+              <div className="content-block-body">
                 <p>
-                  No itinerary selected. Ask me to suggest an itinerary based on
+                  No itinerary selected. Click on an itinerary or ask me to suggest one based on
                   your preferences!
                 </p>
-              )}
+              </div>
             </div>
-          </div>
+          ) : (
+            selectedItineraries.map((itinerary, index) => (
+              <div key={itinerary.id} className="content-block itinerary-details">
+                <div className="content-block-title">
+                  Itinerary {index + 1} Details
+                </div>
+                <div className="content-block-body">
+                  <div className="itinerary-full-details">
+                    <img src={itinerary.imageUrl} alt={itinerary.title} />
+                    <h2>{itinerary.title}</h2>
+                    <p className="description">{itinerary.description}</p>
+                    <div className="detail-row">
+                      <span>Price:</span> ${itinerary.price}
+                    </div>
+                    <div className="detail-row">
+                      <span>Duration:</span> {itinerary.duration}
+                    </div>
+                    <div className="detail-row">
+                      <span>Departure:</span> {itinerary.departureDate}
+                    </div>
+                    <div className="detail-row">
+                      <span>Return:</span> {itinerary.returnDate}
+                    </div>
+                    <div className="detail-row">
+                      <span>Departure Port:</span> {itinerary.departurePort}
+                    </div>
+                    <div className="detail-row">
+                      <span>Arrival Port:</span> {itinerary.arrivalPort}
+                    </div>
+                    <div className="detail-row">
+                      <span>Ship:</span> {itinerary.shipName}
+                    </div>
+                    <div className="detail-row">
+                      <span>Ports of Call:</span>
+                      <ul>
+                        {itinerary.portsOfCall.map((port, index) => (
+                          <li key={index}>{port}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="detail-row">
+                      <span>Amenities:</span>
+                      <ul>
+                        {itinerary.amenities.map((amenity, index) => (
+                          <li key={index}>{amenity}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>

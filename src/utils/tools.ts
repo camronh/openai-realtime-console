@@ -29,37 +29,40 @@ export interface ItineraryPreview {
 export const suggestItineraryTool = {
   definition: {
     name: 'suggest_itinerary',
-    description: 'Suggests an itinerary based on the given ID.',
+    description: 'Suggests one or two itineraries based on the given ID(s).',
     parameters: {
       type: 'object',
       properties: {
-        itineraryId: {
-          type: 'number',
-          description: 'The ID of the itinerary to suggest',
+        itineraryIds: {
+          type: 'array',
+          items: {
+            type: 'number',
+          },
+          description: 'The ID(s) of the itineraries to suggest (up to 2)',
+          minItems: 1,
+          maxItems: 2,
         },
       },
-      required: ['itineraryId'],
+      required: ['itineraryIds'],
     },
   },
 
-  handler: (setSelectedItinerary: React.Dispatch<React.SetStateAction<Itinerary | null>>) => {
-    return async ({ itineraryId }: { itineraryId: number }) => {
-      // Find the itinerary with the matching ID
-      const suggestedItinerary = mockItineraries.find(itinerary => itinerary.id === itineraryId);
+  handler: (setSelectedItineraries: React.Dispatch<React.SetStateAction<Itinerary[]>>) => {
+    return async ({ itineraryIds }: { itineraryIds: number[] }) => {
+      const suggestedItineraries = mockItineraries.filter(itinerary => itineraryIds.includes(itinerary.id));
 
-      if (suggestedItinerary) {
-        // Set the selected itinerary to render it in the utility pane
-        setSelectedItinerary(suggestedItinerary);
+      if (suggestedItineraries.length > 0) {
+        setSelectedItineraries(suggestedItineraries);
         return { 
           ok: true, 
-          message: 'Itinerary suggested successfully', 
-          itinerary: suggestedItinerary 
+          message: `${suggestedItineraries.length} itinerary/itineraries suggested successfully`, 
+          itineraries: suggestedItineraries 
         };
       } else {
         return { 
           ok: false, 
-          message: 'Itinerary not found', 
-          itinerary: null 
+          message: 'No matching itineraries found', 
+          itineraries: [] 
         };
       }
     };

@@ -66,12 +66,13 @@
       }
     }
     .content-right {
-      width: 400px;
+      width: 800px; // Increase width to accommodate two itineraries
       flex-shrink: 0;
       display: flex;
-      flex-direction: column;
+      flex-direction: row; // Change to row to display itineraries side by side
       margin-left: 24px;
       gap: 24px;
+
       & > div {
         border-radius: 16px;
         flex-grow: 1;
@@ -99,6 +100,7 @@
             right: 16px;
           }
         }
+        width: 50%; // Set width to 50% for each itinerary
       }
       & > div.kv {
         height: 250px;
@@ -386,6 +388,7 @@
       &.selected {
         border-color: #0099ff;
         background-color: #f0f8ff;
+        box-shadow: 0 0 10px rgba(0, 153, 255, 0.5);
       }
 
       img {
